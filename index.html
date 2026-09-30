@@ -71,11 +71,11 @@
   <h2>节目单 · <span id="segCount"></span>段</h2>
   <div id="trackList"></div>
 </div>
-<div class="skip-note">点"跳过"会记下来，下次打开自动略过这段；👍👎 会记下你的喜好，点踩自动跳过</div>
+<div class="skip-note">点"跳过"会记下来，下次打开自动略过这段；👍👎 会自动发给莽子，不用你多动手</div>
 <div class="export-area">
-  <button class="btn btn-small" id="btnExport">📤 导出我的偏好</button>
+  <button class="btn btn-small" id="btnExport">📤 导出我的偏好（备用）</button>
   <textarea id="exportText" readonly></textarea>
-  <div class="skip-note" id="exportHint" style="display:none">复制上面的文字发给莽子，我来调节目单</div>
+  <div class="skip-note" id="exportHint" style="display:none">投票已自动发送，这个导出只是备用</div>
 </div>
 
 <audio id="audio" preload="metadata" playsinline></audio>
@@ -178,6 +178,7 @@ function castVote(i, v) {
   var f = SEGMENTS[i].file;
   votes[f] = v;
   saveVotes();
+  submitVote(SEGMENTS[i].title, SEGMENTS[i].cat, v); // 自动发给莽子，不用用户动手
   if (v === -1 && i === curIdx) {
     // 点踩当前这段：记为跳过并切到下一段
     skipped[f] = 1;
@@ -187,6 +188,20 @@ function castVote(i, v) {
   } else {
     renderVoteState(); renderList();
   }
+}
+// ===== 自动反馈：静默提交到 Google 表单 =====
+var FEEDBACK_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeUU_HIvt1f5RRSw8cAPtUuha6vg5LI_VvqGXQ6lvhQDeexng/formResponse';
+function submitVote(title, cat, v) {
+  try {
+    var d = new Date();
+    var dateStr = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+    var body = 'entry.1137703283=' + encodeURIComponent(title)
+      + '&entry.623925255=' + encodeURIComponent(cat || '其他')
+      + '&entry.269913840=' + encodeURIComponent(v === 1 ? '喜欢' : '不喜欢')
+      + '&entry.835202562=' + encodeURIComponent(dateStr);
+    fetch(FEEDBACK_URL, {method: 'POST', mode: 'no-cors',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: body});
+  } catch(e){}
 }
 function renderNow() {
   var s = SEGMENTS[curIdx];
