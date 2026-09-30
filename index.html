@@ -31,6 +31,15 @@
   .track.current { border: 1px solid #e94560; }
   .track.played { opacity: 0.45; }
   .skip-note { text-align: center; font-size: 12px; color: #666; margin-top: 16px; }
+  .vote-row { display: flex; justify-content: center; gap: 12px; margin: 12px 0 4px; }
+  .vote-btn { background: #0f3460; color: white; border: none; font-size: 15px; padding: 8px 22px; border-radius: 20px; cursor: pointer; opacity: 0.55; }
+  .vote-btn.active-like { background: #2d6a4f; opacity: 1; }
+  .vote-btn.active-dislike { background: #9d0208; opacity: 1; }
+  .track .vt { display: flex; gap: 4px; margin-left: 8px; }
+  .track .vt button { background: none; border: none; font-size: 15px; cursor: pointer; opacity: 0.35; padding: 2px 4px; }
+  .track .vt button.on { opacity: 1; }
+  .export-area { margin-top: 16px; text-align: center; }
+  #exportText { width: 100%; height: 130px; background: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 8px; padding: 10px; font-size: 13px; margin-top: 10px; display: none; }
   audio { display: none; }
 </style>
 </head>
@@ -46,6 +55,10 @@
   <div class="meta" id="nowMeta">—</div>
   <div class="progress"><div class="bar" id="progBar"></div></div>
   <div class="time"><span id="tCur">0:00</span><span id="tTot">0:00</span></div>
+  <div class="vote-row">
+    <button class="vote-btn" id="btnLike">👍 喜欢</button>
+    <button class="vote-btn" id="btnDislike">👎 不喜欢</button>
+  </div>
 </div>
 
 <div class="controls">
@@ -58,35 +71,40 @@
   <h2>节目单 · <span id="segCount"></span>段</h2>
   <div id="trackList"></div>
 </div>
-<div class="skip-note">点"跳过"会记下来，下次打开自动略过这段</div>
+<div class="skip-note">点"跳过"会记下来，下次打开自动略过这段；👍👎 会记下你的喜好，点踩自动跳过</div>
+<div class="export-area">
+  <button class="btn btn-small" id="btnExport">📤 导出我的偏好</button>
+  <textarea id="exportText" readonly></textarea>
+  <div class="skip-note" id="exportHint" style="display:none">复制上面的文字发给莽子，我来调节目单</div>
+</div>
 
 <audio id="audio" preload="metadata" playsinline></audio>
 
 <script>
 // ===== 节目单（直接嵌入，不 fetch）=====
 var SEGMENTS = [
-  {file:"01-intro.mp3", title:"开场：店里电台试播版", dur:32},
-  {file:"02-song-chunfeng.mp3", title:"蔡琴 - 春风吻上了我的脸", dur:200},
-  {file:"03-song-xinlian.mp3", title:"蔡琴 - 心恋", dur:214},
-  {file:"04-song-mengxingshifen.mp3", title:"梦醒时分", dur:177},
-  {file:"05-song-zhongshu.mp3", title:"中暑伤风加失恋", dur:212},
-  {file:"06-song-shenqi.mp3", title:"神奇", dur:226},
-  {file:"07-talk-bumper1.mp3", title:"串场：B站解说节选", dur:4},
-  {file:"08-talk-laodai.mp3", title:"老戴Donald - 锐评豆包手机2（节选）", dur:360},
-  {file:"07-break1-umami.mp3", title:"鲜味umami小故事", dur:95},
-  {file:"08-song-putongpengyou-citypop.mp3", title:"普通朋友 (City Pop版)", dur:241},
-  {file:"09-song-keainuren-soul.mp3", title:"可爱女人 (Soul版)", dur:242},
-  {file:"10-song-putongpengyou-funk.mp3", title:"普通朋友 (Funk版)", dur:242},
-  {file:"11-song-tiankong-rb.mp3", title:"王菲《天空》R&B版", dur:269},
-  {file:"14-talk-bumper2.mp3", title:"串场：B站解说节选", dur:4},
-  {file:"15-talk-dianwan.mp3", title:"电丸科技AK - 睡眠实验（节选）", dur:360},
-  {file:"12-break2-finland.mp3", title:"芬兰冷知识", dur:70},
-  {file:"13-song-nideyanjing.mp3", title:"你的眼睛（熊天平&许茹芸 复古流行版）", dur:285},
-  {file:"14-song-qingren.mp3", title:"情人（杨林 深夜R&B版）", dur:297},
-  {file:"19-talk-bumper3.mp3", title:"串场：B站解说节选", dur:4},
-  {file:"20-talk-xiangsheng.mp3", title:"岳云鹏 孙越 - 相声《三个臭皮匠》", dur:876},
-  {file:"15-song-waterfalls.mp3", title:"TLC - Waterfalls", dur:320},
-  {file:"16-song-baiwangewen.mp3", title:"陈明真 - 百万个吻", dur:266}
+  {file:"01-intro.mp3", title:"开场：店里电台试播版", dur:32, cat:"口播"},
+  {file:"02-song-chunfeng.mp3", title:"蔡琴 - 春风吻上了我的脸", dur:200, cat:"音乐"},
+  {file:"03-song-xinlian.mp3", title:"蔡琴 - 心恋", dur:214, cat:"音乐"},
+  {file:"04-song-mengxingshifen.mp3", title:"梦醒时分", dur:177, cat:"音乐"},
+  {file:"05-song-zhongshu.mp3", title:"中暑伤风加失恋", dur:212, cat:"音乐"},
+  {file:"06-song-shenqi.mp3", title:"神奇", dur:226, cat:"音乐"},
+  {file:"07-talk-bumper1.mp3", title:"串场：B站解说节选", dur:4, cat:"口播"},
+  {file:"08-talk-laodai.mp3", title:"老戴Donald - 锐评豆包手机2（节选）", dur:360, cat:"解说"},
+  {file:"07-break1-umami.mp3", title:"鲜味umami小故事", dur:95, cat:"口播"},
+  {file:"08-song-putongpengyou-citypop.mp3", title:"普通朋友 (City Pop版)", dur:241, cat:"音乐"},
+  {file:"09-song-keainuren-soul.mp3", title:"可爱女人 (Soul版)", dur:242, cat:"音乐"},
+  {file:"10-song-putongpengyou-funk.mp3", title:"普通朋友 (Funk版)", dur:242, cat:"音乐"},
+  {file:"11-song-tiankong-rb.mp3", title:"王菲《天空》R&B版", dur:269, cat:"音乐"},
+  {file:"14-talk-bumper2.mp3", title:"串场：B站解说节选", dur:4, cat:"口播"},
+  {file:"15-talk-dianwan.mp3", title:"电丸科技AK - 睡眠实验（节选）", dur:360, cat:"解说"},
+  {file:"12-break2-finland.mp3", title:"芬兰冷知识", dur:70, cat:"口播"},
+  {file:"13-song-nideyanjing.mp3", title:"你的眼睛（熊天平&许茹芸 复古流行版）", dur:285, cat:"音乐"},
+  {file:"14-song-qingren.mp3", title:"情人（杨林 深夜R&B版）", dur:297, cat:"音乐"},
+  {file:"19-talk-bumper3.mp3", title:"串场：B站解说节选", dur:4, cat:"口播"},
+  {file:"20-talk-xiangsheng.mp3", title:"岳云鹏 孙越 - 相声《三个臭皮匠》", dur:876, cat:"相声"},
+  {file:"15-song-waterfalls.mp3", title:"TLC - Waterfalls", dur:320, cat:"音乐"},
+  {file:"16-song-baiwangewen.mp3", title:"陈明真 - 百万个吻", dur:266, cat:"音乐"}
 ];
 var TOTAL = 0;
 SEGMENTS.forEach(function(s){ TOTAL += s.dur; });
@@ -96,6 +114,9 @@ var audio = document.getElementById('audio');
 var curIdx = 0;
 var skipped = {};
 try { skipped = JSON.parse(localStorage.getItem('radio_skipped') || '{}'); } catch(e){ skipped = {}; }
+var votes = {};
+try { votes = JSON.parse(localStorage.getItem('radio_votes') || '{}'); } catch(e){ votes = {}; }
+function saveVotes(){ try { localStorage.setItem('radio_votes', JSON.stringify(votes)); } catch(e){} }
 
 // ===== 赫尔辛基时间：每天 10:30 开播，算出直播位置 =====
 function livePosition() {
@@ -131,10 +152,41 @@ function renderList() {
   var html = '';
   SEGMENTS.forEach(function(s, i){
     var cls = 'track' + (i === curIdx ? ' current' : '') + (skipped[s.file] ? ' played' : '');
-    html += '<div class="'+cls+'"><span class="num">'+(i+1)+'</span><span class="t">'+s.title+'</span><span class="d">'+fmt(s.dur)+'</span></div>';
+    var v = votes[s.file] || 0;
+    html += '<div class="'+cls+'"><span class="num">'+(i+1)+'</span><span class="t">'+s.title+'</span><span class="d">'+fmt(s.dur)+'</span>'
+      + '<span class="vt"><button data-v="1" data-i="'+i+'" class="'+(v===1?'on':'')+'">👍</button><button data-v="-1" data-i="'+i+'" class="'+(v===-1?'on':'')+'">👎</button></span></div>';
   });
   document.getElementById('trackList').innerHTML = html;
   document.getElementById('segCount').textContent = SEGMENTS.length;
+  var btns = document.querySelectorAll('#trackList .vt button');
+  for (var k = 0; k < btns.length; k++) {
+    btns[k].onclick = (function(b){
+      return function(ev){
+        ev.stopPropagation();
+        var i = parseInt(b.getAttribute('data-i'), 10);
+        castVote(i, parseInt(b.getAttribute('data-v'), 10));
+      };
+    })(btns[k]);
+  }
+}
+function renderVoteState() {
+  var v = votes[SEGMENTS[curIdx].file] || 0;
+  document.getElementById('btnLike').className = 'vote-btn' + (v === 1 ? ' active-like' : '');
+  document.getElementById('btnDislike').className = 'vote-btn' + (v === -1 ? ' active-dislike' : '');
+}
+function castVote(i, v) {
+  var f = SEGMENTS[i].file;
+  votes[f] = v;
+  saveVotes();
+  if (v === -1 && i === curIdx) {
+    // 点踩当前这段：记为跳过并切到下一段
+    skipped[f] = 1;
+    try { localStorage.setItem('radio_skipped', JSON.stringify(skipped)); } catch(e){}
+    var n = nextPlayable(curIdx + 1);
+    loadSeg(n, 0); play();
+  } else {
+    renderVoteState(); renderList();
+  }
 }
 function renderNow() {
   var s = SEGMENTS[curIdx];
@@ -151,7 +203,7 @@ function loadSeg(i, offset) {
   if (offset) {
     audio.addEventListener('loadedmetadata', function seek(){ audio.currentTime = offset; audio.removeEventListener('loadedmetadata', seek); });
   }
-  renderNow(); renderList();
+  renderNow(); renderList(); renderVoteState();
 }
 function play(){ audio.play(); }
 function pause(){ audio.pause(); }
@@ -168,6 +220,38 @@ document.getElementById('btnSkip').onclick = function(){
   try { localStorage.setItem('radio_skipped', JSON.stringify(skipped)); } catch(e){}
   var n = nextPlayable(curIdx + 1);
   loadSeg(n, 0); play();
+};
+document.getElementById('btnLike').onclick = function(){ castVote(curIdx, 1); };
+document.getElementById('btnDislike').onclick = function(){ castVote(curIdx, -1); };
+document.getElementById('btnExport').onclick = function(){
+  var likes = [], dislikes = [], catStat = {};
+  SEGMENTS.forEach(function(s){
+    var v = votes[s.file] || 0;
+    if (!v) return;
+    var c = s.cat || '其他';
+    if (!catStat[c]) catStat[c] = {like:0, dislike:0};
+    if (v === 1) { likes.push(s.title); catStat[c].like++; }
+    else { dislikes.push(s.title); catStat[c].dislike++; }
+  });
+  var d = new Date();
+  var dateStr = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+  var txt = '📻 店里电台·我的反馈（' + dateStr + '）\n';
+  txt += '👍 喜欢（' + likes.length + '）：' + (likes.length ? likes.join('；') : '无') + '\n';
+  txt += '👎 不喜欢（' + dislikes.length + '）：' + (dislikes.length ? dislikes.join('；') : '无') + '\n';
+  var cats = [];
+  for (var c in catStat) cats.push(c + ' ' + catStat[c].like + '赞' + catStat[c].dislike + '踩');
+  txt += '分类：' + (cats.length ? cats.join('，') : '无');
+  var ta = document.getElementById('exportText');
+  ta.value = txt;
+  ta.style.display = 'block';
+  document.getElementById('exportHint').style.display = 'block';
+  ta.select();
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt);
+      document.getElementById('exportHint').textContent = '已复制到剪贴板，直接发给莽子就行';
+    }
+  } catch(e){}
 };
 audio.onended = function(){
   var n = nextPlayable(curIdx + 1);
