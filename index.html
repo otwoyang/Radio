@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>店里电台</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 0; background: #14100c; color: #f5ede0;
+    font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 20px 16px 60px; }
+  header { text-align: center; margin-bottom: 18px; }
+  header h1 { font-size: 26px; margin: 6px 0 2px; letter-spacing: 2px; }
+  header .sub { color: #c9a86a; font-size: 13px; }
+  .live { display:inline-block; margin-top:8px; font-size:12px; color:#9fd69f;
+          border:1px solid #3a5f3a; border-radius:20px; padding:3px 12px; }
+  .now { background:#241d14; border:1px solid #4a3a22; border-radius:14px; padding:18px 16px; margin-bottom:14px; }
+  .now .badge { display:inline-block; font-size:12px; color:#0f0c08; background:#c9a86a;
+                border-radius:6px; padding:2px 8px; margin-bottom:8px; font-weight:700; }
+  .now .badge.talk { background:#8fb8d8; }
+  .now h2 { font-size:19px; margin:0 0 4px; line-height:1.4; }
+  .now .meta { font-size:12px; color:#a89880; margin-bottom:12px; }
+  .progress { height:8px; background:#3a2f22; border-radius:4px; overflow:hidden; cursor:pointer; margin:10px 0 6px; }
+  .progress .fill { height:100%; width:0%; background:#c9a86a; border-radius:4px; }
+  .time { display:flex; justify-content:space-between; font-size:12px; color:#a89880; }
+  .controls { display:flex; gap:10px; margin-top:14px; }
+  .controls button {
+    flex:1; border:none; border-radius:12px; padding:14px 0; font-size:16px; font-weight:700;
+    background:#3a2f22; color:#f5ede0; cursor:pointer;
+  }
+  .controls button:active { transform:scale(0.97); }
+  #playBtn { background:#c9a86a; color:#14100c; font-size:20px; flex:1.4; }
+  #skipBtn { background:#5a2e2e; }
+  .hint { text-align:center; font-size:12px; color:#8a7a63; margin-top:10px; line-height:1.6; }
+  .playlist { margin-top:18px; }
+  .playlist h3 { font-size:15px; color:#c9a86a; margin:0 0 8px; }
+  .seg { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
+         background:#1d1812; margin-bottom:6px; cursor:pointer; border:1px solid transparent; }
+  .seg .num { font-size:12px; color:#8a7a63; width:22px; text-align:center; flex-shrink:0; }
+  .seg .t { flex:1; font-size:14px; line-height:1.35; }
+  .seg .d { font-size:12px; color:#8a7a63; flex-shrink:0; }
+  .seg.playing { border-color:#c9a86a; background:#2a2115; }
+  .seg.playing .t { color:#c9a86a; font-weight:700; }
+  .seg.skipped { opacity:0.38; }
+  .seg.skipped .t { text-decoration:line-through; }
+  .start-overlay {
+    position:fixed; inset:0; background:rgba(10,8,5,0.92); z-index:50;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:30px;
+  }
+  .start-overlay.hidden { display:none; }
+  .start-overlay h2 { font-size:24px; margin:0; letter-spacing:2px; }
+  .start-overlay p { color:#c9a86a; font-size:14px; text-align:center; line-height:1.7; margin:0; }
+  #startBtn {
+    border:none; border-radius:50%; width:110px; height:110px; font-size:44px;
+    background:#c9a86a; color:#14100c; cursor:pointer; margin-top:8px;
+  }
+  #startBtn:active { transform:scale(0.95); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📻 店里电台</h1>
+    <div class="sub">主持人 阿莽 · 每天 10:30 开播</div><br>
+    <span class="live" id="liveTag">● 按开播时间自动定位</span>
+  </header>
+
+  <div class="now">
+    <span class="badge" id="typeBadge">音乐</span>
+    <h2 id="title">正在准备…</h2>
+    <div class="meta" id="segMeta">第 - 段 / 共 22 段</div>
+    <div class="progress" id="progress"><div class="fill" id="fill"></div></div>
+    <div class="time"><span id="cur">0:00</span><span id="dur">0:00</span></div>
+    <div class="controls">
+      <button id="prevBtn">⏮ 上一段</button>
+      <button id="playBtn">▶</button>
+      <button id="nextBtn">下一段 ⏭</button>
+      <button id="skipBtn">👎 踩一下跳过</button>
+    </div>
+  </div>
+  <div class="hint">点 ▶ 就开始播，会自动从"现在这个时间该播的段落"接入。<br>不喜欢的段落点"踩一下跳过"，下次自动略过。</div>
+
+  <div class="playlist">
+    <h3>📋 节目单 · 22段</h3>
+    <div id="list"></div>
+  </div>
+</div>
+
+<div class="start-overlay" id="overlay">
+  <h2>📻 店里电台</h2>
+  <p id="overlayText">每天 10:30 开播<br>点下面开始收听</p>
+  <button id="startBtn">▶</button>
+</div>
+
+<audio id="audio" preload="metadata" playsinline></audio>
+
+<script>
+// ===== 节目单（与 playlist.json 一致） =====
+var PLAYLIST = [
+  {f:"01-intro.mp3", t:"开场：店里电台试播版", type:"talk", d:32},
+  {f:"02-song-chunfeng.mp3", t:"蔡琴 - 春风吻上了我的脸", type:"music", d:200},
+  {f:"03-song-xinlian.mp3", t:"蔡琴 - 心恋", type:"music", d:214},
+  {f:"04-song-mengxingshifen.mp3", t:"梦醒时分", type:"music", d:177},
+  {f:"05-song-zhongshu.mp3", t:"中暑伤风加失恋", type:"music", d:212},
+  {f:"06-song-shenqi.mp3", t:"神奇", type:"music", d:226},
+  {f:"07-talk-bumper1.mp3", t:"串场：B站解说节选", type:"talk", d:4},
+  {f:"08-talk-laodai.mp3", t:"老戴Donald - 锐评豆包手机2（节选）", type:"talk", d:360},
+  {f:"07-break1-umami.mp3", t:"鲜味umami小故事", type:"talk", d:95},
+  {f:"08-song-putongpengyou-citypop.mp3", t:"普通朋友 (City Pop版)", type:"music", d:241},
+  {f:"09-song-keainuren-soul.mp3", t:"可爱女人 (Soul版)", type:"music", d:242},
+  {f:"10-song-putongpengyou-funk.mp3", t:"普通朋友 (Funk版)", type:"music", d:242},
+  {f:"11-song-tiankong-rb.mp3", t:"王菲《天空》R&B版", type:"music", d:269},
+  {f:"14-talk-bumper2.mp3", t:"串场：B站解说节选", type:"talk", d:4},
+  {f:"15-talk-dianwan.mp3", t:"电丸科技AK - 睡眠实验（节选）", type:"talk", d:360},
+  {f:"12-break2-finland.mp3", t:"芬兰冷知识", type:"talk", d:70},
+  {f:"13-song-nideyanjing.mp3", t:"你的眼睛（熊天平&许茹芸 复古流行版）", type:"music", d:285},
+  {f:"14-song-qingren.mp3", t:"情人（杨林 深夜R&B版）", type:"music", d:297},
+  {f:"19-talk-bumper3.mp3", t:"串场：B站解说节选", type:"talk", d:4},
+  {f:"20-talk-xiangsheng.mp3", t:"岳云鹏 孙越 - 相声《三个臭皮匠》", type:"talk", d:876},
+  {f:"15-song-waterfalls.mp3", t:"TLC - Waterfalls", type:"music", d:320},
+  {f:"16-song-baiwangewen.mp3", t:"陈明真 - 百万个吻", type:"music", d:266}
+];
+var TOTAL = 4996;
+var START_SEC = 10*3600 + 30*60; // 10:30
+
+var audio = document.getElementById('audio');
+var idx = 0;
+var pendingOffset = 0;
+var skipped = {};
+try {
+  var s = JSON.parse(localStorage.getItem('radio_skipped') || '[]');
+  for (var i=0;i<s.length;i++) skipped[s[i]] = 1;
+} catch(e) {}
+
+function saveSkipped(){
+  try { localStorage.setItem('radio_skipped', JSON.stringify(Object.keys(skipped))); } catch(e) {}
+}
+function isSkipped(i){ return !!skipped[PLAYLIST[i].f]; }
+
+function helsinkiSecs(){
+  try {
+    var parts = new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Helsinki',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(new Date());
+    var g = function(t){ for(var i=0;i<parts.length;i++) if(parts[i].type===t) return parseInt(parts[i].value,10); return 0; };
+    return g('hour')*3600 + g('minute')*60 + g('second');
+  } catch(e) {
+    var d = new Date(); return d.getHours()*3600 + d.getMinutes()*60 + d.getSeconds();
+  }
+}
+// 按"现在离10:30过去多久"定位；播完一轮就循环
+function livePosition(){
+  var elapsed = helsinkiSecs() - START_SEC;
+  if (elapsed < 0) elapsed = 0;
+  elapsed = elapsed % TOTAL;
+  var acc = 0;
+  for (var i=0;i<PLAYLIST.length;i++){
+    if (elapsed < acc + PLAYLIST[i].d) return {idx:i, offset: elapsed - acc};
+    acc += PLAYLIST[i].d;
+  }
+  return {idx:0, offset:0};
+}
+function nextValid(i, dir){
+  dir = dir || 1;
+  var n = i, guard = 0;
+  do {
+    n = (n + dir + PLAYLIST.length) % PLAYLIST.length;
+    guard++;
+  } while (isSkipped(n) && guard <= PLAYLIST.length);
+  return n;
+}
+
+function fmt(s){
+  s = Math.max(0, Math.floor(s||0));
+  return Math.floor(s/60) + ':' + ('0'+(s%60)).slice(-2);
+}
+
+function renderList(){
+  var html = '';
+  for (var i=0;i<PLAYLIST.length;i++){
+    var p = PLAYLIST[i];
+    var cls = 'seg' + (i===idx?' playing':'') + (isSkipped(i)?' skipped':'');
+    html += '<div class="'+cls+'" data-i="'+i+'"><span class="num">'+(i+1)+'</span>'
+      + '<span class="t">'+escapeHtml(p.t)+'</span>'
+      + '<span class="d">'+fmt(p.d)+'</span></div>';
+  }
+  document.getElementById('list').innerHTML = html;
+  var items = document.querySelectorAll('.seg');
+  for (var j=0;j<items.length;j++){
+    (function(el){
+      el.addEventListener('click', function(){
+        var i = parseInt(el.getAttribute('data-i'),10);
+        loadSeg(i, 0); audio.play().catch(function(){});
+      });
+    })(items[j]);
+  }
+}
+function escapeHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function loadSeg(i, offset){
+  idx = i;
+  pendingOffset = offset || 0;
+  var p = PLAYLIST[idx];
+  // 相对路径，直接挂给 audio（不走 fetch，Safari 可播）
+  audio.src = 'segments/' + p.f;
+  audio.load();
+  document.getElementById('title').textContent = p.t;
+  var badge = document.getElementById('typeBadge');
+  badge.textContent = p.type === 'music' ? '音乐' : '口播';
+  badge.className = 'badge' + (p.type === 'music' ? '' : ' talk');
+  document.getElementById('segMeta').textContent = '第 ' + (idx+1) + ' 段 / 共 ' + PLAYLIST.length + ' 段';
+  document.getElementById('dur').textContent = fmt(p.d);
+  renderList();
+}
+audio.addEventListener('loadedmetadata', function(){
+  if (pendingOffset > 0 && audio.duration){
+    try { audio.currentTime = Math.min(pendingOffset, Math.max(0, audio.duration - 1)); } catch(e){}
+  }
+  pendingOffset = 0;
+});
+audio.addEventListener('timeupdate', function(){
+  if (audio.duration){
+    document.getElementById('fill').style.width = (audio.currentTime/audio.duration*100) + '%';
+    document.getElementById('cur').textContent = fmt(audio.currentTime);
+  }
+});
+audio.addEventListener('ended', function(){
+  loadSeg(nextValid(idx, 1), 0);
+  audio.play().catch(function(){});
+});
+audio.addEventListener('error', function(){
+  document.getElementById('title').textContent = '⚠️ 这段加载失败，已自动跳到下一段';
+  setTimeout(function(){ loadSeg(nextValid(idx,1),0); audio.play().catch(function(){}); }, 1500);
+});
+
+document.getElementById('playBtn').addEventListener('click', function(){
+  if (audio.paused){ audio.play().catch(function(){}); }
+  else { audio.pause(); }
+});
+audio.addEventListener('play', function(){ document.getElementById('playBtn').textContent = '⏸'; });
+audio.addEventListener('pause', function(){ document.getElementById('playBtn').textContent = '▶'; });
+document.getElementById('nextBtn').addEventListener('click', function(){
+  loadSeg(nextValid(idx,1), 0); audio.play().catch(function(){});
+});
+document.getElementById('prevBtn').addEventListener('click', function(){
+  loadSeg(nextValid(idx,-1), 0); audio.play().catch(function(){});
+});
+document.getElementById('skipBtn').addEventListener('click', function(){
+  skipped[PLAYLIST[idx].f] = 1; saveSkipped();
+  loadSeg(nextValid(idx,1), 0); audio.play().catch(function(){});
+});
+document.getElementById('progress').addEventListener('click', function(e){
+  var r = this.getBoundingClientRect();
+  var ratio = (e.clientX - r.left) / r.width;
+  if (audio.duration){ try { audio.currentTime = ratio * audio.duration; } catch(err){} }
+});
+
+// 开屏：必须用户点一下（iOS 要求手势才能播声音）
+(function init(){
+  var pos = livePosition();
+  var i = pos.idx;
+  if (isSkipped(i)) i = nextValid(i, 1);
+  loadSeg(i, pos.offset);
+  var h = helsinkiSecs(), hh = Math.floor(h/3600), mm = Math.floor((h%3600)/60);
+  var mmStr = ('0'+mm).slice(-2);
+  var status = (h < START_SEC)
+    ? '还没到10:30，先从头听 · 赫尔辛基时间 ' + hh + ':' + mmStr
+    : '已按开播时间自动定位 · 赫尔辛基时间 ' + hh + ':' + mmStr;
+  document.getElementById('overlayText').innerHTML = '每天 10:30 开播<br>' + status + '<br>点下面开始收听';
+  document.getElementById('startBtn').addEventListener('click', function(){
+    document.getElementById('overlay').classList.add('hidden');
+    audio.play().catch(function(){});
+  });
+})();
+</script>
+</body>
+</html>
